@@ -738,12 +738,20 @@ function handleURLParams() {
   window.history.replaceState({}, document.title, window.location.pathname);
 
   try {
-    // Strip markdown code fences Claude sometimes adds
     let cleaned = decodeURIComponent(data).trim();
-    cleaned = cleaned.replace(/^```json\s*/i,'').replace(/\s*```$/,'').trim();
-    // Extract just the JSON object if there's extra text
+
+    // If it's the full API response object {"type":"text","text":"..."}, extract inner text
+    try {
+      const outer = JSON.parse(cleaned);
+      if (outer.type === 'text' && outer.text) cleaned = outer.text;
+    } catch(e) {}
+
+    // Strip markdown code fences
+    cleaned = cleaned.replace(/^```json\s*/i,'').replace(/\s*```\s*$/,'').trim();
+
+    // Extract the first JSON object found
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) { showToast('⚠ No JSON found in response'); return; }
+    if (!jsonMatch) { showToast('⚠ No JSON found: ' + cleaned.substring(0,80)); return; }
     const payload = JSON.parse(jsonMatch[0]);
     const action = payload.action;
 
