@@ -729,8 +729,80 @@ function showVoiceFeedback(msg) {
   setTimeout(()=>document.getElementById('voice-status').textContent='', 5000);
 }
 
+// ─── URL Parameter Ingestion (iPhone Shortcut entry point) ─
+function handleURLParams() {
+  const params = new URLSearchParams(window.location.search);
+  const data = params.get('data');
+  if (!data) return;
+
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  try {
+    // Strip markdown code fences Claude sometimes adds
+    let cleaned = decodeURIComponent(data).trim();
+    cleaned = cleaned.replace(/^```json\s*/i,'').replace(/\s*```$/,'').trim();
+    // Extract just the JSON object if there's extra text
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) { showToast('⚠ No JSON found in response'); return; }
+    const payload = JSON.parse(jsonMatch[0]);
+    const action = payload.action;
+
+    if (action === 'add_task') {
+      tasks.push({
+        id: Date.now()+Math.random(),
+        text:     payload.text     || 'New task',
+        priority: payload.priority || 'medium',
+        due:      payload.due      || '',
+        deal:     payload.deal     || '',
+        source:   'voice',
+        done:     false
+      });
+      saveTasks(); renderTasks(); updateStats();
+      showToast('🎙 Task added: ' + (payload.text||'').substring(0,50));
+    }
+
+    if (action === 'mark_done') {
+      const keyword = (payload.keyword||'').toLowerCase();
+      const found = tasks.find(t => !t.done && t.text.toLowerCase().includes(keyword));
+      if (found) { found.done=true; saveTasks(); renderTasks(); updateStats(); showToast('✓ Marked done: '+found.text.substring(0,50)); }
+      else showToast('⚠ No task matched: '+payload.keyword);
+    }
+
+    if (action === 'add_deal') {
+      deals.push({
+        id:     Date.now(),
+        name:   payload.name   || 'New Deal',
+        buyer:  payload.buyer  || '',
+        trader: payload.trader || 'Laurent / TMGS',
+        seller: payload.seller || '',
+        origin: payload.origin || '',
+        volume: payload.volume || '',
+        price:  payload.price  || '',
+        phase:  payload.phase  || 'offer',
+        notes:  payload.notes  || 'Added by voice'
+      });
+      saveDeals(); renderDeals(); updateStats();
+      showToast('🎙 Deal added: ' + (payload.name||'').substring(0,50));
+    }
+
+  } catch(e) { showToast('⚠ Could not parse incoming data'); }
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--accent);color:var(--text);padding:12px 24px;border-radius:8px;font-family:DM Mono,monospace;font-size:13px;z-index:2000;box-shadow:0 4px 24px rgba(0,0,0,0.5);transition:opacity 0.4s;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg; t.style.opacity = '1';
+  setTimeout(() => t.style.opacity = '0', 4000);
+}
+
 // ─── Init ──────────────────────────────────────────────────
 renderTasks(); renderDeals(); updateStats();
+handleURLParams(); // process any incoming Shortcut data
 
 document.getElementById('deal-modal').addEventListener('click', function(e){ if(e.target===this) closeDealModal(); });
 document.getElementById('task-text-input')?.addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
