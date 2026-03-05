@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TMGS — Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111417;
+    --surface2: #181c20;
+    --border: #1e2328;
+    --border2: #252b32;
+    --accent: #c8a96e;
+    --accent2: #e8c98e;
+    --text: #e8eaed;
+    --text2: #8a9099;
+    --text3: #4a5260;
+    --offer: #2a6496;
+    --offer-bg: #0d1f2d;
+    --neg: #7d4f9a;
+    --neg-bg: #1a1025;
+    --booking: #c87941;
+    --booking-bg: #2a1a0d;
+    --contract: #3a8a5a;
+    --contract-bg: #0d2018;
+    --urgent: #c84141;
+    --urgent-bg: #2a0d0d;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; overflow-x:hidden; }
+  body::before { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events:none; z-index:1000; opacity:0.4; }
+
+  header { padding:20px 40px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--surface); }
+  .logo { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:6px; color:var(--accent); }
+  .logo-sub { font-family:'DM Mono',monospace; font-size:10px; color:var(--text3); letter-spacing:3px; margin-top:-2px; }
+  .date-time { font-family:'DM Mono',monospace; font-size:12px; color:var(--text3); text-align:right; }
+  .date-time .date { color:var(--text2); font-size:13px; }
+
+  .sync-bar { background:var(--surface2); border-bottom:1px solid var(--border); padding:9px 40px; display:flex; align-items:center; gap:14px; font-size:12px; font-family:'DM Mono',monospace; flex-wrap:wrap; }
+  .sync-status { display:flex; align-items:center; gap:8px; color:var(--text2); }
+  .sync-dot { width:7px; height:7px; border-radius:50%; background:var(--contract); box-shadow:0 0 8px var(--contract); animation:pulse 2s infinite; }
+  .sync-dot.offline { background:var(--urgent); box-shadow:0 0 8px var(--urgent); animation:none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .sync-bar input[type=password] { background:var(--border); border:1px solid var(--border2); color:var(--text); padding:5px 12px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; width:320px; outline:none; }
+  .sync-bar input:focus { border-color:var(--accent); }
+  .sync-bar input::placeholder { color:var(--text3); }
+  .btn-sync { background:var(--accent); color:#000; border:none; padding:5px 14px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; font-weight:500; cursor:pointer; letter-spacing:1px; }
+  .btn-sync:hover { background:var(--accent2); }
+
+  /* Voice command bar */
+  .voice-bar { background:var(--surface2); border-bottom:1px solid var(--border); padding:8px 40px; display:flex; align-items:center; gap:12px; }
+  .voice-btn { display:flex; align-items:center; gap:8px; background:transparent; border:1px solid var(--border2); color:var(--text2); padding:6px 16px; border-radius:20px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:all 0.2s; letter-spacing:1px; }
+  .voice-btn:hover, .voice-btn.listening { border-color:var(--accent); color:var(--accent); }
+  .voice-btn.listening { background:rgba(200,169,110,0.08); animation:voicePulse 1s infinite; }
+  @keyframes voicePulse { 0%,100%{box-shadow:0 0 0 0 rgba(200,169,110,0.3)} 50%{box-shadow:0 0 0 6px rgba(200,169,110,0)} }
+  .mic-dot { width:8px; height:8px; border-radius:50%; background:var(--text3); transition:background 0.2s; }
+  .voice-btn.listening .mic-dot { background:var(--accent); }
+  .voice-transcript { font-family:'DM Mono',monospace; font-size:11px; color:var(--text3); flex:1; font-style:italic; }
+  .voice-status { font-family:'DM Mono',monospace; font-size:10px; color:var(--text3); margin-left:auto; }
+
+  main { padding:28px 40px; display:grid; grid-template-columns:1fr 1.6fr; gap:28px; max-width:1700px; margin:0 auto; }
+
+  .panel-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:3px; color:var(--accent); margin-bottom:4px; }
+  .panel-sub { font-size:11px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:1px; margin-bottom:18px; }
+
+  /* TASKS */
+  .task-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .filter-btn { padding:4px 12px; border-radius:20px; border:1px solid var(--border2); background:transparent; color:var(--text2); font-size:11px; font-family:'DM Mono',monospace; cursor:pointer; transition:all 0.15s; letter-spacing:0.5px; }
+  .filter-btn.active, .filter-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+  .task-list { display:flex; flex-direction:column; gap:7px; }
+
+  .task-card { background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border2); border-radius:6px; padding:12px 14px; display:flex; align-items:flex-start; gap:10px; transition:all 0.15s; animation:slideIn 0.3s ease both; }
+  .task-card:hover { background:var(--surface2); }
+  .task-card.priority-high { border-left-color:var(--urgent); }
+  .task-card.priority-medium { border-left-color:var(--accent); }
+  .task-card.priority-low { border-left-color:var(--text3); }
+  .task-card.done { opacity:0.35; }
+  .task-card.done .task-text { text-decoration:line-through; }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+
+  .task-check { width:18px; height:18px; border:1.5px solid var(--border2); border-radius:4px; flex-shrink:0; margin-top:2px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; font-size:11px; }
+  .task-check:hover { border-color:var(--accent); }
+  .task-card.done .task-check { background:var(--contract); border-color:var(--contract); color:#fff; }
+
+  .task-content { flex:1; min-width:0; }
+  .task-text { font-size:13px; color:var(--text); line-height:1.4; margin-bottom:5px; }
+  .task-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+  .tag { font-size:10px; font-family:'DM Mono',monospace; padding:2px 7px; border-radius:3px; letter-spacing:0.5px; }
+  .tag-source { background:var(--border); color:var(--text3); }
+  .tag-due { background:var(--urgent-bg); color:#e08080; border:1px solid #3a1a1a; }
+  .tag-deal { background:var(--offer-bg); color:#6ab0e0; border:1px solid #1a3050; }
+  .tag-voice { background:rgba(200,169,110,0.1); color:var(--accent); border:1px solid rgba(200,169,110,0.2); }
+
+  .priority-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; margin-top:6px; }
+  .priority-dot.high { background:var(--urgent); box-shadow:0 0 6px var(--urgent); }
+  .priority-dot.medium { background:var(--accent); }
+  .priority-dot.low { background:var(--text3); }
+
+  .task-actions { display:flex; gap:4px; opacity:0; transition:opacity 0.15s; flex-shrink:0; }
+  .task-card:hover .task-actions { opacity:1; }
+  .task-action-btn { background:transparent; border:1px solid var(--border2); color:var(--text3); width:24px; height:24px; border-radius:4px; cursor:pointer; font-size:11px; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+  .task-action-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .task-action-btn.del:hover { border-color:var(--urgent); color:var(--urgent); }
+
+  /* Inline edit */
+  .task-edit-form { display:none; padding:10px; background:var(--surface2); border-top:1px solid var(--border); margin-top:8px; border-radius:4px; }
+  .task-edit-form.open { display:block; }
+  .task-edit-form input, .task-edit-form select { width:100%; background:var(--bg); border:1px solid var(--border2); color:var(--text); padding:7px 10px; border-radius:4px; font-family:'DM Sans',sans-serif; font-size:12px; outline:none; margin-bottom:6px; }
+  .task-edit-form input:focus, .task-edit-form select:focus { border-color:var(--accent); }
+  .task-edit-form select option { background:var(--surface); }
+  .edit-row { display:flex; gap:6px; }
+  .edit-row input, .edit-row select { margin-bottom:0; }
+  .btn-save-edit { background:var(--accent); color:#000; border:none; padding:6px 16px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; margin-top:6px; }
+  .btn-cancel-edit { background:transparent; color:var(--text3); border:1px solid var(--border2); padding:6px 14px; border-radius:4px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; margin-top:6px; margin-left:6px; }
+
+  .add-task-btn { margin-top:14px; width:100%; background:transparent; border:1px dashed var(--border2); color:var(--text3); padding:9px; border-radius:6px; font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; transition:all 0.15s; letter-spacing:1px; }
+  .add-task-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .add-task-form { margin-top:10px; background:var(--surface); border:1px solid var(--border2); border-radius:6px; padding:14px; display:none; }
+  .add-task-form.open { display:block; }
+  .add-task-form input, .add-task-form select { width:100%; background:var(--bg); border:1px solid var(--border2); color:var(--text); padding:8px 12px; border-radius:4px; font-family:'DM Sans',sans-serif; font-size:13px; outline:none; margin-bottom:8px; }
+  .add-task-form input:focus, .add-task-form select:focus { border-color:var(--accent); }
+  .add-task-form select option { background:var(--surface); }
+  .form-row { display:flex; gap:8px; }
+  .form-row input, .form-row select { margin-bottom:0; }
+  .btn-add { background:var(--accent); color:#000; border:none; padding:8px 20px; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; margin-top:8px; }
+  .btn-cancel { background:transparent; color:var(--text3); border:1px solid var(--border2); padding:8px 18px; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; margin-top:8px; margin-left:8px; }
+
+  /* DEALS */
+  .stats-bar { margin-bottom:18px; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .stat-box { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:12px 14px; }
+  .stat-val { font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--accent); letter-spacing:2px; line-height:1; }
+  .stat-label { font-size:10px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:1px; margin-top:3px; }
+
+  .pipeline-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .phase-col { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .phase-header { padding:10px 12px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+  .phase-name { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; font-weight:500; }
+  .phase-count { font-family:'DM Mono',monospace; font-size:11px; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:500; }
+
+  .phase-offer { border-top:2px solid var(--offer); }
+  .phase-offer .phase-name { color:#6ab0e0; }
+  .phase-offer .phase-count { background:var(--offer-bg); color:#6ab0e0; }
+  .phase-neg { border-top:2px solid var(--neg); }
+  .phase-neg .phase-name { color:#b07ad8; }
+  .phase-neg .phase-count { background:var(--neg-bg); color:#b07ad8; }
+  .phase-booking { border-top:2px solid var(--booking); }
+  .phase-booking .phase-name { color:#e0a06a; }
+  .phase-booking .phase-count { background:var(--booking-bg); color:#e0a06a; }
+  .phase-contract { border-top:2px solid var(--contract); }
+  .phase-contract .phase-name { color:#6aba90; }
+  .phase-contract .phase-count { background:var(--contract-bg); color:#6aba90; }
+
+  .phase-cards { padding:8px; display:flex; flex-direction:column; gap:7px; min-height:100px; }
+
+  .deal-card { background:var(--surface2); border:1px solid var(--border2); border-radius:5px; padding:11px; cursor:pointer; transition:all 0.15s; animation:slideIn 0.3s ease both; }
+  .deal-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .deal-name { font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; line-height:1.3; }
+
+  .deal-parties { display:flex; flex-direction:column; gap:2px; margin-bottom:7px; }
+  .deal-party { display:flex; align-items:center; gap:6px; }
+  .party-label { font-size:9px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:1px; width:42px; flex-shrink:0; }
+  .party-val { font-size:11px; color:var(--text2); font-family:'DM Mono',monospace; }
+  .party-val.tmgs { color:var(--accent); font-weight:500; }
+
+  .deal-specs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .deal-spec { font-size:10px; font-family:'DM Mono',monospace; background:var(--border); color:var(--text2); padding:2px 7px; border-radius:3px; }
+  .deal-spec.vol { color:#6ab0e0; background:var(--offer-bg); }
+  .deal-spec.price { color:var(--accent); background:rgba(200,169,110,0.08); }
+
+  .deal-notes { font-size:11px; color:var(--text3); border-top:1px solid var(--border); padding-top:6px; line-height:1.4; }
+  .add-deal-btn { margin:0 8px 8px; width:calc(100% - 16px); background:transparent; border:1px dashed var(--border2); color:var(--text3); padding:6px; border-radius:4px; font-family:'DM Mono',monospace; font-size:10px; cursor:pointer; transition:all 0.15s; letter-spacing:0.5px; }
+  .add-deal-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* Modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:500; display:none; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border2); border-radius:10px; padding:26px; width:520px; max-width:92vw; max-height:85vh; overflow-y:auto; }
+  .modal h3 { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); margin-bottom:18px; }
+  .modal label { font-size:10px; font-family:'DM Mono',monospace; color:var(--text3); display:block; margin-bottom:4px; letter-spacing:1px; }
+  .modal input, .modal select, .modal textarea { width:100%; background:var(--bg); border:1px solid var(--border2); color:var(--text); padding:9px 12px; border-radius:4px; font-family:'DM Sans',sans-serif; font-size:13px; outline:none; margin-bottom:10px; }
+  .modal input:focus, .modal select:focus, .modal textarea:focus { border-color:var(--accent); }
+  .modal textarea { resize:vertical; min-height:72px; }
+  .modal select option { background:var(--surface); }
+  .modal-row { display:flex; gap:10px; }
+  .modal-row > div { flex:1; }
+  .modal-actions { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+  .btn-primary { background:var(--accent); color:#000; border:none; padding:9px 24px; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; font-weight:500; }
+  .btn-secondary { background:transparent; color:var(--text2); border:1px solid var(--border2); padding:9px 20px; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; }
+  .btn-danger { background:transparent; color:var(--urgent); border:1px solid var(--urgent-bg); padding:9px 20px; border-radius:4px; font-family:'DM Mono',monospace; font-size:12px; cursor:pointer; margin-left:auto; }
+
+  .section-divider { font-size:10px; font-family:'DM Mono',monospace; color:var(--text3); letter-spacing:2px; padding:4px 0 10px; border-bottom:1px solid var(--border); margin-bottom:12px; }
+
+  .empty-state { font-size:11px; font-family:'DM Mono',monospace; color:var(--text3); text-align:center; padding:18px 8px; letter-spacing:0.5px; }
+
+  @media(max-width:1100px){ main{grid-template-columns:1fr} .pipeline-grid{grid-template-columns:repeat(2,1fr)} .stats-bar{grid-template-columns:repeat(2,1fr)} }
+  @media(max-width:600px){ main{padding:14px} header{padding:14px} .sync-bar,.voice-bar{padding:8px 14px} .pipeline-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">TMGS</div>
+    <div class="logo-sub">TAILOR-MADE GLOBAL SOLUTIONS · COMMAND CENTER</div>
+  </div>
+  <div class="date-time">
+    <div class="date" id="date-display"></div>
+    <div id="time-display"></div>
+  </div>
+</header>
+
+<div class="sync-bar">
+  <div class="sync-status">
+    <div class="sync-dot offline" id="sync-dot"></div>
+    <span id="sync-label">NOT CONNECTED</span>
+  </div>
+  <input type="password" id="notion-key" placeholder="Notion Integration Token (secret_... or ntn_...)"/>
+  <button class="btn-sync" onclick="connectNotion()">CONNECT</button>
+  <span style="color:var(--text3)" id="sync-msg"></span>
+</div>
+
+<div class="voice-bar">
+  <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">
+    <div class="mic-dot" id="mic-dot"></div>
+    <span id="voice-btn-label">🎙 VOICE COMMAND</span>
+  </button>
+  <span class="voice-transcript" id="voice-transcript">Say: "Add task call Agustin tomorrow high priority" · "Mark task done" · "Add deal HRC buyer Stahl seller ArcelorMittal"</span>
+  <span class="voice-status" id="voice-status"></span>
+</div>
+
+<main>
+  <!-- LEFT: TASKS -->
+  <div>
+    <div class="panel-title">TASKS</div>
+    <div class="panel-sub">FOLLOW-UPS · ACTIONS · CALLS · CLICK TASK TO EDIT</div>
+
+    <div class="task-filters">
+      <button class="filter-btn active" onclick="filterTasks('all',this)">ALL</button>
+      <button class="filter-btn" onclick="filterTasks('high',this)">URGENT</button>
+      <button class="filter-btn" onclick="filterTasks('today',this)">TODAY</button>
+      <button class="filter-btn" onclick="filterTasks('pending',this)">PENDING</button>
+    </div>
+
+    <div class="task-list" id="task-list"></div>
+
+    <button class="add-task-btn" onclick="openTaskForm()">+ ADD TASK MANUALLY</button>
+    <div class="add-task-form" id="task-form">
+      <input type="text" id="task-text-input" placeholder="Task description..."/>
+      <div class="form-row">
+        <select id="task-priority">
+          <option value="medium">Medium priority</option>
+          <option value="high">High / Urgent</option>
+          <option value="low">Low priority</option>
+        </select>
+        <input type="date" id="task-due"/>
+      </div>
+      <input type="text" id="task-deal-link" placeholder="Linked deal (optional)"/>
+      <div>
+        <button class="btn-add" onclick="addTask()">ADD</button>
+        <button class="btn-cancel" onclick="closeTaskForm()">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: DEALS -->
+  <div>
+    <div class="stats-bar" id="stats-bar"></div>
+    <div class="panel-title">DEALS PIPELINE</div>
+    <div class="panel-sub">ACTIVE OPPORTUNITIES · CLICK DEAL TO EDIT · STEEL TRADING</div>
+
+    <div class="pipeline-grid">
+      <div class="phase-col phase-offer">
+        <div class="phase-header"><span class="phase-name">Offer</span><span class="phase-count" id="count-offer">0</span></div>
+        <div class="phase-cards" id="col-offer"></div>
+        <button class="add-deal-btn" onclick="openDealModal('offer')">+ deal</button>
+      </div>
+      <div class="phase-col phase-neg">
+        <div class="phase-header"><span class="phase-name">Negotiation</span><span class="phase-count" id="count-negotiation">0</span></div>
+        <div class="phase-cards" id="col-negotiation"></div>
+        <button class="add-deal-btn" onclick="openDealModal('negotiation')">+ deal</button>
+      </div>
+      <div class="phase-col phase-booking">
+        <div class="phase-header"><span class="phase-name">Booking</span><span class="phase-count" id="count-booking">0</span></div>
+        <div class="phase-cards" id="col-booking"></div>
+        <button class="add-deal-btn" onclick="openDealModal('booking')">+ deal</button>
+      </div>
+      <div class="phase-col phase-contract">
+        <div class="phase-header"><span class="phase-name">Contract</span><span class="phase-count" id="count-contract">0</span></div>
+        <div class="phase-cards" id="col-contract"></div>
+        <button class="add-deal-btn" onclick="openDealModal('contract')">+ deal</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Deal Modal -->
+<div class="modal-overlay" id="deal-modal">
+  <div class="modal">
+    <h3 id="modal-title">NEW DEAL</h3>
+
+    <label>Deal / Product Name</label>
+    <input type="text" id="d-name" placeholder="e.g. HRC Q2 – Germany"/>
+
+    <div class="section-divider">PARTIES</div>
+    <div class="modal-row">
+      <div>
+        <label>BUYER</label>
+        <input type="text" id="d-buyer" placeholder="e.g. Stahl GmbH"/>
+      </div>
+      <div>
+        <label>TRADER (TMGS)</label>
+        <input type="text" id="d-trader" placeholder="e.g. Laurent / TMGS" value="Laurent / TMGS"/>
+      </div>
+    </div>
+    <div class="modal-row">
+      <div>
+        <label>SELLER / MILL</label>
+        <input type="text" id="d-seller" placeholder="e.g. ArcelorMittal"/>
+      </div>
+      <div>
+        <label>ORIGIN</label>
+        <input type="text" id="d-origin" placeholder="e.g. Belgium, Ukraine"/>
+      </div>
+    </div>
+
+    <div class="section-divider">COMMERCIAL</div>
+    <div class="modal-row">
+      <div>
+        <label>VOLUME (MT)</label>
+        <input type="text" id="d-volume" placeholder="e.g. 500 MT"/>
+      </div>
+      <div>
+        <label>PRICE (€/MT)</label>
+        <input type="text" id="d-price" placeholder="e.g. €490/MT"/>
+      </div>
+    </div>
+
+    <div class="section-divider">STATUS</div>
+    <label>PHASE</label>
+    <select id="d-phase">
+      <option value="offer">Offer</option>
+      <option value="negotiation">Negotiation</option>
+      <option value="booking">Booking</option>
+      <option value="contract">Contract</option>
+    </select>
+
+    <label>NEXT ACTION / NOTES</label>
+    <textarea id="d-notes" placeholder="What's the next step for this deal?"></textarea>
+
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveDeal()">SAVE</button>
+      <button class="btn-secondary" onclick="closeDealModal()">CANCEL</button>
+      <button class="btn-danger" id="btn-delete-deal" onclick="deleteDeal()" style="display:none">DELETE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────
+let tasks = JSON.parse(localStorage.getItem('tmgs_tasks') || '[]');
+let deals = JSON.parse(localStorage.getItem('tmgs_deals') || '[]');
+let currentFilter = 'all';
+let notionKey = localStorage.getItem('tmgs_notionKey') || '';
+let activeEditTaskId = null;
+let recognition = null;
+let isListening = false;
+
+// ─── Clock ────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('date-display').textContent = now.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'}).toUpperCase();
+  document.getElementById('time-display').textContent = now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+}
+updateClock(); setInterval(updateClock, 1000);
+
+// ─── Notion ────────────────────────────────────────────────
+if (notionKey) { document.getElementById('notion-key').value = notionKey; updateSyncUI(true); }
+
+function connectNotion() {
+  const key = document.getElementById('notion-key').value.trim();
+  if (!key.startsWith('secret_') && !key.startsWith('ntn_')) {
+    showSyncMsg('⚠ Token should start with secret_ or ntn_','#e08080'); return;
+  }
+  notionKey = key; localStorage.setItem('tmgs_notionKey', key);
+  updateSyncUI(true); showSyncMsg('✓ Token saved','var(--contract)');
+}
+function showSyncMsg(msg, color) {
+  const el = document.getElementById('sync-msg');
+  el.textContent = msg; el.style.color = color;
+  setTimeout(() => el.textContent = '', 3000);
+}
+function updateSyncUI(connected) {
+  const dot = document.getElementById('sync-dot'), label = document.getElementById('sync-label');
+  if (connected) { dot.className='sync-dot'; label.textContent='CONNECTED · NOTION READY'; label.style.color='var(--contract)'; }
+  else { dot.className='sync-dot offline'; label.textContent='NOT CONNECTED'; label.style.color='var(--text3)'; }
+}
+
+// ─── Seed Data ─────────────────────────────────────────────
+function today() { return new Date().toISOString().split('T')[0]; }
+function tomorrow() { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; }
+
+if (!tasks.length) {
+  tasks = [
+    { id:1, text:'Follow up with Agustin on HRC offer — confirm pricing', priority:'high', due:today(), source:'voice', done:false, deal:'HRC – Industrias ES' },
+    { id:2, text:'Send updated tonnage confirmation to Odamura-san', priority:'high', due:today(), source:'email', done:false, deal:'' },
+    { id:3, text:'Review Q1 European margin targets', priority:'medium', due:'', source:'manual', done:false, deal:'' },
+    { id:4, text:'Check new coil arrivals from Black Sea — update price list', priority:'medium', due:tomorrow(), source:'voice', done:false, deal:'' },
+    { id:5, text:'Call Belgian distributor re: delivery window shift', priority:'low', due:'', source:'manual', done:false, deal:'' },
+  ];
+  saveTasks();
+}
+
+if (!deals.length) {
+  deals = [
+    { id:1, name:'HRC – ArcelorMittal BE Export', buyer:'Acier France SA', trader:'Laurent / TMGS', seller:'ArcelorMittal', origin:'Belgium', volume:'2,000 MT', price:'€490/MT', phase:'offer', notes:'Waiting on revised offer sheet' },
+    { id:2, name:'CRC – Germany Q2', buyer:'Stahl GmbH', trader:'Laurent / TMGS', seller:'NLMK', origin:'Ukraine', volume:'500 MT', price:'€520/MT', phase:'negotiation', notes:'Price gap €12/MT — next call Thu' },
+    { id:3, name:'Plate – Spain Opportunity', buyer:'Industrias Agustin', trader:'Laurent / TMGS', seller:'Kardemir', origin:'Turkey', volume:'800 MT', price:'€510/MT', phase:'negotiation', notes:'Agustin reviewing payment terms' },
+    { id:4, name:'HRC – Japan Sourcing', buyer:'Odamura Trading', trader:'Laurent / TMGS', seller:'JFE Steel', origin:'Japan', volume:'1,500 MT', price:'€465/MT', phase:'booking', notes:'Logistics confirmation pending' },
+    { id:5, name:'Coil – FR Distributor Q2', buyer:'Négoce FR', trader:'Laurent / TMGS', seller:'Tata Steel', origin:'Netherlands', volume:'3,000 MT', price:'€480/MT', phase:'contract', notes:'Signed — delivery Mar–May' },
+  ];
+  saveDeals();
+}
+
+// ─── Tasks ────────────────────────────────────────────────
+function saveTasks() { localStorage.setItem('tmgs_tasks', JSON.stringify(tasks)); }
+
+function renderTasks() {
+  const list = document.getElementById('task-list');
+  let filtered = [...tasks];
+  if (currentFilter==='high') filtered=filtered.filter(t=>t.priority==='high');
+  if (currentFilter==='today') filtered=filtered.filter(t=>t.due===today());
+  if (currentFilter==='pending') filtered=filtered.filter(t=>!t.done);
+
+  if (!filtered.length) { list.innerHTML='<div class="empty-state">NO TASKS · ALL CLEAR</div>'; return; }
+
+  filtered.sort((a,b)=>{ if(a.done!==b.done) return a.done?1:-1; const p={high:0,medium:1,low:2}; return p[a.priority]-p[b.priority]; });
+
+  list.innerHTML = filtered.map((t,i) => `
+    <div class="task-card priority-${t.priority} ${t.done?'done':''}" style="animation-delay:${i*35}ms" id="task-${t.id}">
+      <div class="priority-dot ${t.priority}"></div>
+      <div class="task-check" onclick="toggleTask(${t.id})">${t.done?'✓':''}</div>
+      <div class="task-content" onclick="toggleEditTask(${t.id})" style="cursor:pointer">
+        <div class="task-text">${t.text}</div>
+        <div class="task-meta">
+          <span class="tag ${t.source==='voice'?'tag-voice':'tag-source'}">${t.source.toUpperCase()}</span>
+          ${t.due?`<span class="tag tag-due">DUE ${formatDate(t.due)}</span>`:''}
+          ${t.deal?`<span class="tag tag-deal">↗ ${t.deal}</span>`:''}
+        </div>
+        <div class="task-edit-form ${activeEditTaskId===t.id?'open':''}" id="edit-form-${t.id}" onclick="event.stopPropagation()">
+          <input type="text" id="edit-text-${t.id}" value="${escHtml(t.text)}" placeholder="Task description"/>
+          <div class="edit-row">
+            <select id="edit-priority-${t.id}">
+              <option value="high" ${t.priority==='high'?'selected':''}>High / Urgent</option>
+              <option value="medium" ${t.priority==='medium'?'selected':''}>Medium</option>
+              <option value="low" ${t.priority==='low'?'selected':''}>Low</option>
+            </select>
+            <input type="date" id="edit-due-${t.id}" value="${t.due||''}"/>
+          </div>
+          <input type="text" id="edit-deal-${t.id}" value="${escHtml(t.deal||'')}" placeholder="Linked deal"/>
+          <div>
+            <button class="btn-save-edit" onclick="saveEditTask(${t.id})">SAVE</button>
+            <button class="btn-cancel-edit" onclick="cancelEditTask()">CANCEL</button>
+          </div>
+        </div>
+      </div>
+      <div class="task-actions">
+        <button class="task-action-btn del" onclick="deleteTask(${t.id})" title="Delete">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatDate(str) { if(!str) return ''; const d=new Date(str+'T12:00:00'); return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).toUpperCase(); }
+
+function toggleTask(id) { const t=tasks.find(t=>t.id===id); if(t){t.done=!t.done; saveTasks(); renderTasks(); updateStats();} }
+
+function toggleEditTask(id) {
+  activeEditTaskId = activeEditTaskId===id ? null : id;
+  renderTasks();
+  if (activeEditTaskId) { setTimeout(()=>{ const el=document.getElementById(`edit-text-${id}`); if(el)el.focus(); },50); }
+}
+
+function cancelEditTask() { activeEditTaskId=null; renderTasks(); }
+
+function saveEditTask(id) {
+  const t = tasks.find(x=>x.id===id); if(!t) return;
+  const newText = document.getElementById(`edit-text-${id}`).value.trim();
+  if (!newText) return;
+  t.text = newText;
+  t.priority = document.getElementById(`edit-priority-${id}`).value;
+  t.due = document.getElementById(`edit-due-${id}`).value;
+  t.deal = document.getElementById(`edit-deal-${id}`).value.trim();
+  activeEditTaskId = null;
+  saveTasks(); renderTasks(); updateStats();
+}
+
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  tasks = tasks.filter(t=>t.id!==id);
+  saveTasks(); renderTasks(); updateStats();
+}
+
+function filterTasks(f, btn) {
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function openTaskForm() { document.getElementById('task-form').classList.add('open'); document.getElementById('task-text-input').focus(); }
+function closeTaskForm() { document.getElementById('task-form').classList.remove('open'); }
+
+function addTask(text, priority, due, deal, source) {
+  const txt = text || document.getElementById('task-text-input').value.trim();
+  if (!txt) return;
+  tasks.push({
+    id: Date.now()+Math.random(),
+    text: txt,
+    priority: priority || document.getElementById('task-priority').value,
+    due: due || document.getElementById('task-due').value,
+    deal: deal || document.getElementById('task-deal-link').value.trim(),
+    source: source || 'manual',
+    done: false
+  });
+  saveTasks(); renderTasks(); updateStats();
+  if (!text) {
+    document.getElementById('task-text-input').value='';
+    document.getElementById('task-due').value='';
+    document.getElementById('task-deal-link').value='';
+    closeTaskForm();
+  }
+}
+
+// ─── Deals ────────────────────────────────────────────────
+function saveDeals() { localStorage.setItem('tmgs_deals', JSON.stringify(deals)); }
+
+function renderDeals() {
+  const phases = ['offer','negotiation','booking','contract'];
+  phases.forEach(phase => {
+    const col = document.getElementById('col-'+phase);
+    const pd = deals.filter(d=>d.phase===phase);
+    document.getElementById('count-'+phase).textContent = pd.length;
+    if (!pd.length) { col.innerHTML='<div class="empty-state">EMPTY</div>'; return; }
+    col.innerHTML = pd.map((d,i) => `
+      <div class="deal-card" style="animation-delay:${i*40}ms" onclick="openDealDetail(${d.id})">
+        <div class="deal-name">${d.name}</div>
+        <div class="deal-parties">
+          <div class="deal-party"><span class="party-label">BUYER</span><span class="party-val">${d.buyer||'—'}</span></div>
+          <div class="deal-party"><span class="party-label">TRADER</span><span class="party-val tmgs">${d.trader||'TMGS'}</span></div>
+          <div class="deal-party"><span class="party-label">SELLER</span><span class="party-val">${d.seller||'—'}</span></div>
+        </div>
+        <div class="deal-specs">
+          ${d.volume?`<span class="deal-spec vol">${d.volume}</span>`:''}
+          ${d.price?`<span class="deal-spec price">${d.price}</span>`:''}
+          ${d.origin?`<span class="deal-spec">${d.origin}</span>`:''}
+        </div>
+        ${d.notes?`<div class="deal-notes">${d.notes}</div>`:''}
+      </div>
+    `).join('');
+  });
+}
+
+let editingDealId = null;
+
+function openDealModal(phase) {
+  editingDealId=null;
+  document.getElementById('modal-title').textContent='NEW DEAL';
+  document.getElementById('btn-delete-deal').style.display='none';
+  ['d-name','d-buyer','d-seller','d-origin','d-volume','d-price','d-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('d-trader').value='Laurent / TMGS';
+  document.getElementById('d-phase').value=phase;
+  document.getElementById('deal-modal').classList.add('open');
+}
+
+function openDealDetail(id) {
+  const d=deals.find(x=>x.id===id); if(!d) return;
+  editingDealId=id;
+  document.getElementById('modal-title').textContent='EDIT DEAL';
+  document.getElementById('btn-delete-deal').style.display='block';
+  document.getElementById('d-name').value=d.name||'';
+  document.getElementById('d-buyer').value=d.buyer||'';
+  document.getElementById('d-trader').value=d.trader||'Laurent / TMGS';
+  document.getElementById('d-seller').value=d.seller||'';
+  document.getElementById('d-origin').value=d.origin||'';
+  document.getElementById('d-volume').value=d.volume||'';
+  document.getElementById('d-price').value=d.price||'';
+  document.getElementById('d-phase').value=d.phase||'offer';
+  document.getElementById('d-notes').value=d.notes||'';
+  document.getElementById('deal-modal').classList.add('open');
+}
+
+function closeDealModal() { document.getElementById('deal-modal').classList.remove('open'); }
+
+function saveDeal() {
+  const name=document.getElementById('d-name').value.trim(); if(!name) return;
+  const dealData = {
+    name, buyer:document.getElementById('d-buyer').value.trim(),
+    trader:document.getElementById('d-trader').value.trim(),
+    seller:document.getElementById('d-seller').value.trim(),
+    origin:document.getElementById('d-origin').value.trim(),
+    volume:document.getElementById('d-volume').value.trim(),
+    price:document.getElementById('d-price').value.trim(),
+    phase:document.getElementById('d-phase').value,
+    notes:document.getElementById('d-notes').value.trim(),
+  };
+  if (editingDealId) { const idx=deals.findIndex(d=>d.id===editingDealId); deals[idx]={...deals[idx],...dealData}; }
+  else deals.push({id:Date.now(),...dealData});
+  saveDeals(); renderDeals(); updateStats(); closeDealModal();
+}
+
+function deleteDeal() {
+  if (!confirm('Delete this deal?')) return;
+  deals=deals.filter(d=>d.id!==editingDealId);
+  saveDeals(); renderDeals(); updateStats(); closeDealModal();
+}
+
+// ─── Stats ─────────────────────────────────────────────────
+function updateStats() {
+  const openTasks=tasks.filter(t=>!t.done).length;
+  const urgentTasks=tasks.filter(t=>!t.done&&t.priority==='high').length;
+  const activeDeals=deals.length;
+  const totalVol=deals.reduce((s,d)=>s+(parseFloat((d.volume||'').replace(/[^0-9.]/g,''))||0),0);
+  const volFmt=totalVol>=1000?Math.round(totalVol/1000)+'K MT':totalVol+' MT';
+  document.getElementById('stats-bar').innerHTML=`
+    <div class="stat-box"><div class="stat-val">${openTasks}</div><div class="stat-label">OPEN TASKS</div></div>
+    <div class="stat-box"><div class="stat-val" style="color:var(--urgent)">${urgentTasks}</div><div class="stat-label">URGENT</div></div>
+    <div class="stat-box"><div class="stat-val">${activeDeals}</div><div class="stat-label">ACTIVE DEALS</div></div>
+    <div class="stat-box"><div class="stat-val" style="font-size:20px">${volFmt}</div><div class="stat-label">TOTAL VOLUME</div></div>
+  `;
+}
+
+// ─── Voice Commands ───────────────────────────────────────
+function setupVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById('voice-status').textContent = 'Voice not supported in this browser';
+    return false;
+  }
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (e) => {
+    const transcript = Array.from(e.results).map(r=>r[0].transcript).join('');
+    document.getElementById('voice-transcript').textContent = '🎙 ' + transcript;
+    if (e.results[e.results.length-1].isFinal) processVoiceCommand(transcript);
+  };
+  recognition.onend = () => stopListening();
+  recognition.onerror = (e) => {
+    document.getElementById('voice-status').textContent = 'Error: ' + e.error;
+    stopListening();
+  };
+  return true;
+}
+
+function toggleVoice() {
+  if (isListening) { recognition?.stop(); stopListening(); return; }
+  if (!recognition && !setupVoice()) return;
+  recognition.start();
+  isListening = true;
+  document.getElementById('voice-btn').classList.add('listening');
+  document.getElementById('voice-btn-label').textContent = '⏹ STOP LISTENING';
+  document.getElementById('voice-transcript').textContent = 'Listening...';
+  document.getElementById('voice-status').textContent = '';
+}
+
+function stopListening() {
+  isListening = false;
+  document.getElementById('voice-btn').classList.remove('listening');
+  document.getElementById('voice-btn-label').textContent = '🎙 VOICE COMMAND';
+}
+
+function processVoiceCommand(text) {
+  const t = text.toLowerCase().trim();
+  document.getElementById('voice-status').textContent = '⚡ Processing...';
+
+  // ADD TASK: "add task [description] [priority] [due]"
+  if (t.includes('add task') || t.includes('new task') || t.includes('create task')) {
+    let desc = t.replace(/add task|new task|create task/i,'').trim();
+    let priority = 'medium', due = '';
+    if (/urgent|high priority|asap/.test(desc)) { priority='high'; desc=desc.replace(/urgent|high priority|asap/g,'').trim(); }
+    if (/low priority/.test(desc)) { priority='low'; desc=desc.replace(/low priority/g,'').trim(); }
+    if (/tomorrow/.test(desc)) { due=tomorrow(); desc=desc.replace(/tomorrow/g,'').trim(); }
+    if (/today/.test(desc)) { due=today(); desc=desc.replace(/today/g,'').trim(); }
+    desc = desc.replace(/\.$/, '').trim();
+    if (desc) { addTask(desc, priority, due, '', 'voice'); showVoiceFeedback('✓ Task added: ' + desc); }
+    return;
+  }
+
+  // MARK DONE: "mark [task keyword] done" or "complete [keyword]"
+  if (/mark .+ done|complete .+|finish .+/.test(t)) {
+    const keyword = t.replace(/mark|done|complete|finish/g,'').trim();
+    const found = tasks.find(tk=>!tk.done && tk.text.toLowerCase().includes(keyword));
+    if (found) { found.done=true; saveTasks(); renderTasks(); updateStats(); showVoiceFeedback('✓ Marked done: '+found.text.substring(0,40)); }
+    else showVoiceFeedback('⚠ No matching task found for: '+keyword);
+    return;
+  }
+
+  // ADD DEAL: "add deal [name] buyer [x] seller [y]"
+  if (t.includes('add deal') || t.includes('new deal')) {
+    let rest = t.replace(/add deal|new deal/,'').trim();
+    const buyerMatch = rest.match(/buyer\s+([a-z\s]+?)(?:seller|trader|origin|$)/i);
+    const sellerMatch = rest.match(/seller\s+([a-z\s]+?)(?:buyer|trader|origin|volume|price|$)/i);
+    const name = rest.split(/buyer|seller|trader/)[0].trim() || 'New Deal';
+    deals.push({
+      id: Date.now(), name, phase:'offer',
+      buyer: buyerMatch?buyerMatch[1].trim():'',
+      trader:'Laurent / TMGS',
+      seller: sellerMatch?sellerMatch[1].trim():'',
+      origin:'', volume:'', price:'', notes:'Added by voice'
+    });
+    saveDeals(); renderDeals(); updateStats();
+    showVoiceFeedback('✓ Deal added: '+name+' → click to complete details');
+    return;
+  }
+
+  showVoiceFeedback('⚠ Command not understood. Try: "add task call Agustin tomorrow high priority"');
+}
+
+function showVoiceFeedback(msg) {
+  document.getElementById('voice-status').textContent = msg;
+  document.getElementById('voice-transcript').textContent = 'Say: "Add task..." · "Mark [keyword] done" · "Add deal..."';
+  setTimeout(()=>document.getElementById('voice-status').textContent='', 5000);
+}
+
+// ─── Init ──────────────────────────────────────────────────
+renderTasks(); renderDeals(); updateStats();
+
+document.getElementById('deal-modal').addEventListener('click', function(e){ if(e.target===this) closeDealModal(); });
+document.getElementById('task-text-input')?.addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
+
+// Public API for iPhone Shortcut webhook
+window.addTasksFromVoice = function(taskTexts, source) {
+  taskTexts.forEach(text => addTask(text,'medium',today(),'',source||'voice'));
+};
+</script>
+</body>
+</html>
