@@ -361,13 +361,63 @@
 
 <script>
 // ─── State ───────────────────────────────────────────────
-let tasks = JSON.parse(localStorage.getItem('tmgs_tasks') || '[]');
-let deals = JSON.parse(localStorage.getItem('tmgs_deals') || '[]');
+let tasks = [];
+let deals = [];
 let currentFilter = 'all';
-let notionKey = localStorage.getItem('tmgs_notionKey') || '';
 let activeEditTaskId = null;
 let recognition = null;
 let isListening = false;
+
+// ─── JSONBin Sync ─────────────────────────────────────────
+const BIN_ID  = '69ad6e60ae596e708f6cc05e';
+const BIN_KEY = '$2a$10$d61vLL2k77Z/7jfwvHUUXO3414hxq9pNwLEphDc.YFmOEjJFVE9dK';
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+async function loadFromBin() {
+  try {
+    setSyncStatus('loading');
+    const res = await fetch(BIN_URL + '/latest', { headers:{'X-Master-Key':BIN_KEY} });
+    const data = await res.json();
+    tasks = data.record.tasks || [];
+    deals = data.record.deals || [];
+    // If bin is empty seed with defaults
+    if (!tasks.length && !deals.length) seedDefaults();
+    renderTasks(); renderDeals(); updateStats();
+    setSyncStatus('connected');
+  } catch(e) {
+    setSyncStatus('offline');
+    tasks = JSON.parse(localStorage.getItem('tmgs_tasks')||'[]');
+    deals = JSON.parse(localStorage.getItem('tmgs_deals')||'[]');
+    if (!tasks.length && !deals.length) seedDefaults();
+    renderTasks(); renderDeals(); updateStats();
+  }
+}
+
+async function saveToBin() {
+  localStorage.setItem('tmgs_tasks', JSON.stringify(tasks));
+  localStorage.setItem('tmgs_deals', JSON.stringify(deals));
+  try {
+    await fetch(BIN_URL, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':BIN_KEY},
+      body: JSON.stringify({tasks, deals})
+    });
+    setSyncStatus('connected');
+  } catch(e) { setSyncStatus('offline'); }
+}
+
+function setSyncStatus(state) {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  if (!dot||!label) return;
+  if (state==='connected') {
+    dot.className='sync-dot'; label.textContent='SYNCED · ALL DEVICES'; label.style.color='var(--contract)';
+  } else if (state==='loading') {
+    dot.className='sync-dot loading'; label.textContent='SYNCING...'; label.style.color='var(--booking)';
+  } else {
+    dot.className='sync-dot offline'; label.textContent='OFFLINE · LOCAL ONLY'; label.style.color='var(--text3)';
+  }
+}
 
 // ─── Clock ────────────────────────────────────────────────
 function updateClock() {
@@ -399,11 +449,12 @@ function updateSyncUI(connected) {
   else { dot.className='sync-dot offline'; label.textContent='NOT CONNECTED'; label.style.color='var(--text3)'; }
 }
 
-// ─── Seed Data ─────────────────────────────────────────────
-function today() { return new Date().toISOString().split('T')[0]; }
+// placeholder-removed { return new Date().toISOString().split('T')[0]; }
 function tomorrow() { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; }
 
-if (!tasks.length) {
+
+// ─── Seed Data ─────────────────────────────────────────────
+function seedDefaults() {
   tasks = [
     { id:1, text:'Follow up with Agustin on HRC offer — confirm pricing', priority:'high', due:today(), source:'voice', done:false, deal:'HRC – Industrias ES' },
     { id:2, text:'Send updated tonnage confirmation to Odamura-san', priority:'high', due:today(), source:'email', done:false, deal:'' },
@@ -411,10 +462,6 @@ if (!tasks.length) {
     { id:4, text:'Check new coil arrivals from Black Sea — update price list', priority:'medium', due:tomorrow(), source:'voice', done:false, deal:'' },
     { id:5, text:'Call Belgian distributor re: delivery window shift', priority:'low', due:'', source:'manual', done:false, deal:'' },
   ];
-  saveTasks();
-}
-
-if (!deals.length) {
   deals = [
     { id:1, name:'HRC – ArcelorMittal BE Export', buyer:'Acier France SA', trader:'Laurent / TMGS', seller:'ArcelorMittal', origin:'Belgium', volume:'2,000 MT', price:'€490/MT', phase:'offer', notes:'Waiting on revised offer sheet' },
     { id:2, name:'CRC – Germany Q2', buyer:'Stahl GmbH', trader:'Laurent / TMGS', seller:'NLMK', origin:'Ukraine', volume:'500 MT', price:'€520/MT', phase:'negotiation', notes:'Price gap €12/MT — next call Thu' },
@@ -422,11 +469,11 @@ if (!deals.length) {
     { id:4, name:'HRC – Japan Sourcing', buyer:'Odamura Trading', trader:'Laurent / TMGS', seller:'JFE Steel', origin:'Japan', volume:'1,500 MT', price:'€465/MT', phase:'booking', notes:'Logistics confirmation pending' },
     { id:5, name:'Coil – FR Distributor Q2', buyer:'Négoce FR', trader:'Laurent / TMGS', seller:'Tata Steel', origin:'Netherlands', volume:'3,000 MT', price:'€480/MT', phase:'contract', notes:'Signed — delivery Mar–May' },
   ];
-  saveDeals();
+  saveToBin();
 }
 
 // ─── Tasks ────────────────────────────────────────────────
-function saveTasks() { localStorage.setItem('tmgs_tasks', JSON.stringify(tasks)); }
+function saveTasks() { saveToBin(); }
 
 function renderTasks() {
   const list = document.getElementById('task-list');
@@ -537,7 +584,7 @@ function addTask(text, priority, due, deal, source) {
 }
 
 // ─── Deals ────────────────────────────────────────────────
-function saveDeals() { localStorage.setItem('tmgs_deals', JSON.stringify(deals)); }
+function saveDeals() { saveToBin(); }
 
 function renderDeals() {
   const phases = ['offer','negotiation','booking','contract'];
@@ -730,12 +777,15 @@ function showVoiceFeedback(msg) {
 }
 
 // ─── URL Parameter Ingestion (iPhone Shortcut entry point) ─
-function handleURLParams() {
+async function handleURLParams() {
   const params = new URLSearchParams(window.location.search);
   const data = params.get('data');
   if (!data) return;
-
   window.history.replaceState({}, document.title, window.location.pathname);
+  await handlePendingData(data);
+}
+
+async function handlePendingData(data) {
 
   try {
     let cleaned = decodeURIComponent(data).trim();
@@ -751,7 +801,7 @@ function handleURLParams() {
 
     // Extract the first JSON object found
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) { showToast('⚠ No JSON found: ' + cleaned.substring(0,80)); return; }
+    if (!jsonMatch) { showToast('⚠ No JSON found: ' + cleaned.substring(0,80)); showDebug('No JSON found. cleaned=' + cleaned.substring(0,100)); return; }
     const payload = JSON.parse(jsonMatch[0]);
     const action = payload.action;
 
@@ -765,14 +815,14 @@ function handleURLParams() {
         source:   'voice',
         done:     false
       });
-      saveTasks(); renderTasks(); updateStats();
+      await saveToBin(); renderTasks(); updateStats();
       showToast('🎙 Task added: ' + (payload.text||'').substring(0,50));
     }
 
     if (action === 'mark_done') {
       const keyword = (payload.keyword||'').toLowerCase();
       const found = tasks.find(t => !t.done && t.text.toLowerCase().includes(keyword));
-      if (found) { found.done=true; saveTasks(); renderTasks(); updateStats(); showToast('✓ Marked done: '+found.text.substring(0,50)); }
+      if (found) { found.done=true; await saveToBin(); renderTasks(); updateStats(); showToast('✓ Marked done: '+found.text.substring(0,50)); }
       else showToast('⚠ No task matched: '+payload.keyword);
     }
 
@@ -789,11 +839,22 @@ function handleURLParams() {
         phase:  payload.phase  || 'offer',
         notes:  payload.notes  || 'Added by voice'
       });
-      saveDeals(); renderDeals(); updateStats();
+      await saveToBin(); renderDeals(); updateStats();
       showToast('🎙 Deal added: ' + (payload.name||'').substring(0,50));
     }
 
   } catch(e) { showToast('⚠ Could not parse incoming data'); }
+}
+
+function showDebug(msg) {
+  let d = document.getElementById('debug-bar');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = 'debug-bar';
+    d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ff0;color:#000;padding:12px 16px;font-size:13px;font-family:monospace;z-index:9999;word-break:break-all;';
+    document.body.appendChild(d);
+  }
+  d.textContent = '🐛 ' + msg;
 }
 
 function showToast(msg) {
@@ -805,12 +866,18 @@ function showToast(msg) {
     document.body.appendChild(t);
   }
   t.textContent = msg; t.style.opacity = '1';
-  setTimeout(() => t.style.opacity = '0', 4000);
+  setTimeout(() => t.style.opacity = '0', 8000);
 }
 
 // ─── Init ──────────────────────────────────────────────────
-renderTasks(); renderDeals(); updateStats();
-handleURLParams(); // process any incoming Shortcut data
+// Capture URL param immediately before any async operations
+const _pendingData = new URLSearchParams(window.location.search).get('data');
+if (_pendingData) window.history.replaceState({}, document.title, window.location.pathname);
+
+// Load from cloud, then apply pending data if any
+loadFromBin().then(() => {
+  if (_pendingData) handlePendingData(_pendingData);
+});
 
 document.getElementById('deal-modal').addEventListener('click', function(e){ if(e.target===this) closeDealModal(); });
 document.getElementById('task-text-input')?.addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
