@@ -3,6 +3,12 @@
   functions = "netlify/functions"
   publish = "."
 
+[build.environment]
+  # Supabase URL + anon key are public by design (data is protected by RLS).
+  # They must appear in index.html, so exempt them from Netlify's secrets scanner.
+  # Real secrets (GARMIN_EMAIL / GARMIN_PASSWORD) are still scanned.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL,SUPABASE_ANON_KEY"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

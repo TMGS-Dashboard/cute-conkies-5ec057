@@ -1,0 +1,42 @@
+# My Everything App
+
+Personal life dashboard + AI fitness coach. Deployed on Netlify.
+
+## Repo structure
+
+```
+index.html                              Main Everything App (dashboard, health, CRM, journal…)
+fitness-coach.html                      ⚡ Fitness Coach — Claude-powered adaptive workouts
+sw.js                                   Service worker (offline cache)
+manifest.webmanifest                    PWA manifest
+icon-192.png / icon-512.png             App icons
+apple-touch-icon.png                    iOS home-screen icon
+netlify.toml                            Netlify config (build, redirects, secrets-scan exceptions)
+netlify/functions/garmin-sync.js        Pulls Garmin data → Supabase health_inbox
+netlify/functions/scheduled-garmin-sync.ts   Daily schedule for the sync
+```
+
+## Netlify environment variables (Site settings → Environment)
+
+| Key | Purpose |
+|-----|---------|
+| `GARMIN_EMAIL` | Garmin Connect login (secret) |
+| `GARMIN_PASSWORD` | Garmin Connect password (secret) |
+| `SUPABASE_URL` | Supabase project URL (public — also in index.html) |
+| `SUPABASE_ANON_KEY` | Supabase anon key (public by design, protected by RLS) |
+
+`netlify.toml` exempts the two public Supabase values from Netlify's secrets
+scanner (`SECRETS_SCAN_OMIT_KEYS`); the Garmin credentials are still scanned
+and must never appear in any file.
+
+## Fitness Coach
+
+- Reads Garmin metrics (sleep, body battery, RHR, HRV, steps) shared by the
+  Everything App on the same device (`ea-fit-bridge` in localStorage).
+- Uses the Anthropic API key saved in Everything App → Settings → Voice & photo AI.
+- Weather for run planning via Open-Meteo (no key needed).
+
+## Deploy
+
+Push to `main` → Netlify builds and deploys. Functions run from
+`netlify/functions/`; the scheduled sync fires daily.
