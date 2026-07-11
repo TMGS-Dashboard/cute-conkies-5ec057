@@ -196,6 +196,7 @@
     <div class="brand">My <span>Everything</span> App</div>
     <button class="navbtn active" data-page="dashboard"><span class="ico">◈</span> Dashboard</button>
     <button class="navbtn" data-page="health"><span class="ico">♥</span> Health &amp; Fitness</button>
+    <a class="navbtn" href="fitness-coach.html" style="text-decoration:none">⚡ Fitness Coach</a>
     <button class="navbtn" data-page="journal"><span class="ico">✎</span> Journal &amp; Focus</button>
     <button class="navbtn" data-page="personal"><span class="ico">⌂</span> Personal Life</button>
     <button class="navbtn" data-page="professional"><span class="ico">▦</span> Professional</button>
@@ -856,6 +857,16 @@ async function encryptObj(obj){const iv=crypto.getRandomValues(new Uint8Array(12
   return {enc:true,v:1,iv:b64(iv),ct:b64(new Uint8Array(ct)),salt:SEC.salt};}
 async function decryptEnv(env,key){const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:ub64(env.iv)},key,ub64(env.ct));return JSON.parse(_td.decode(pt));}
 let _persisting=false,_persistAgain=false;
+function writeFitBridge(){
+  /* Shares recent (non-sensitive) fitness data with the Fitness Coach app on this device */
+  try{
+    const m=sortByDate(DB.metrics||[]).slice(-14).map(x=>({date:x.date,steps:x.steps,sleep:x.sleep,rhr:x.rhr,hrv:x.hrv,bb:x.bb,cal:x.cal}));
+    const w=(DB.workouts||[]).slice(-40).map(x=>({date:x.date,exercise:x.exercise,weight:x.weight,reps:x.reps,sets:x.sets}));
+    const r=(DB.runs||[]).slice(-10).map(x=>({date:x.date,km:x.km,min:x.min||x.mins,note:x.note}));
+    const wt=(DB.weights||[]).slice(-5).map(x=>({date:x.date,kg:x.kg||x.weight}));
+    localStorage.setItem('ea-fit-bridge',JSON.stringify({updated:new Date().toISOString(),metrics:m,workouts:w,runs:r,weights:wt}));
+  }catch(e){}
+}
 async function persist(){
   if(LOCKED)return; // never overwrite encrypted store while locked
   if(_persisting){_persistAgain=true;return;}
@@ -863,6 +874,7 @@ async function persist(){
   try{const ts=new Date().toISOString();localStorage.setItem(TS_KEY,ts);
     if(SEC.enc){if(!cryptoKey)return;const env=await encryptObj(DB);localStorage.setItem(KEY,JSON.stringify(env));}
     else localStorage.setItem(KEY,JSON.stringify(DB));
+    writeFitBridge();
     scheduleSync();
   }catch(e){console.warn('persist',e);} finally{_persisting=false;if(_persistAgain){_persistAgain=false;persist();}}}
 
@@ -1154,7 +1166,7 @@ function anchorOfDay(){return ANCHORS[Math.floor((new Date()-new Date(2026,0,0))
 
 /* ============ NAV ============ */
 const titles={dashboard:'Dashboard',health:'Health & Fitness',journal:'Journal & Focus',personal:'Personal Life',professional:'Professional',learn:'Daily Learning',settings:'Settings & Sync'};
-document.querySelectorAll('.navbtn').forEach(b=>b.onclick=()=>{
+document.querySelectorAll('.navbtn[data-page]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.navbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');
   const p=b.dataset.page;document.querySelectorAll('.page').forEach(s=>s.classList.add('pagehide'));
   document.getElementById('page-'+p).classList.remove('pagehide');
